@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalogue Review Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f3f6fa;--sf:#fff;--tx:#1c2b3a;--mu:#5f7083;--ln:#d9e1ea;--nv:#1f3a5f;--ac:#0d8a7f;--ok:#2f855a;--wr:#c77700;--er:#c0392b;--hd:#e8eef5}
+@media (prefers-color-scheme:dark){:root{--bg:#111a24;--sf:#1a2634;--tx:#e8eef5;--mu:#93a4b6;--ln:#2c3b4d;--nv:#8fb4e3;--ac:#4fd1c5;--ok:#68d391;--wr:#f6ad55;--er:#fc8181;--hd:#223244}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1150px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0;color:var(--nv)}h2{font-size:16px;margin:0 0 8px;color:var(--nv)}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:8px;padding:16px;margin-bottom:14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.mu{color:var(--mu)}
+button,select,input{font:inherit;color:var(--tx);background:var(--sf);border:1px solid var(--ln);border-radius:6px;padding:7px 11px}
+button{cursor:pointer}button.p{background:var(--nv);border-color:var(--nv);color:var(--sf)}button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.lg{max-width:360px;margin:12vh auto 0}.lg label{display:block;margin:10px 0 4px;font-weight:500}.lg input{width:100%}.lg button{width:100%;margin-top:16px}
+.er{color:var(--er);margin-top:8px}
+table.fmt{border-collapse:collapse;margin:8px 0;width:100%}.fmt th,.fmt td{border:1px solid var(--ln);padding:6px 10px;text-align:left}.fmt th{background:var(--hd)}
+ul{margin:6px 0 0;padding-left:20px;color:var(--mu)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.row label{display:flex;flex-direction:column;font-size:13px;color:var(--mu);gap:3px}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kp div{background:var(--sf);border:1px solid var(--ln);border-left:4px solid var(--ac);border-radius:6px;padding:10px 12px}
+.kp b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.kp span{font-size:13px;color:var(--mu)}
+.wrap{overflow-x:auto;border:1px solid var(--ln);border-radius:8px;background:var(--sf);max-height:68vh}
+table.d{border-collapse:collapse;width:100%;min-width:820px}
+.d th,.d td{padding:9px 12px;border-bottom:1px solid var(--ln);text-align:right;font-variant-numeric:tabular-nums}
+.d th{position:sticky;top:0;background:var(--hd);cursor:pointer;font-size:13px;color:var(--nv)}
+.d .l{text-align:left}.d td.l{white-space:normal;min-width:220px}
+.pos{color:var(--ok)}.neg{color:var(--er)}.need{color:var(--wr);font-weight:600}.done{color:var(--ok);font-weight:600}
+.err{border-left:4px solid var(--er)}.err li{color:var(--er)}
+</style></head><body>
+
+<section id="login" class="lg card">
+<h1>Catalogue Review Tracker</h1>
+<p class="mu">Sign in to continue.</p>
+<label for="u">Email</label><input id="u" type="email" autocomplete="username">
+<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+<button class="p" id="go">Sign in</button>
+<div class="er" id="le" role="alert"></div>
+</section>
+
+<main id="app" hidden>
+<div class="top"><h1>Catalogue Review Tracker</h1><div><span id="st" class="mu"></span> <button id="out">Sign out</button></div></div>
+
+<div class="card">
+<h2>Add this week's data</h2>
+<p style="margin:0 0 6px">Use an Excel (.xlsx) or .csv sheet with exactly these headings in row 1:</p>
+<table class="fmt"><tr><th>ASIN</th><th>Product Name</th><th>Total Reviews</th><th>Average Rating</th></tr>
+<tr><td>B0EXAMPLE01</td><td>Steel Water Bottle 1L</td><td>1240</td><td>4.2</td></tr></table>
+<ul><li>One row per product. Each ASIN appears once.</li><li>Total Reviews is a number. Average Rating is a number from 1 to 5.</li><li>Data goes on the first tab. Use the same format every week.</li></ul>
+<div class="row" style="margin-top:12px">
+<label>Sheet<input id="fc" type="file" accept=".xlsx,.xls,.csv"></label>
+<label>Name for this upload<input id="lb" placeholder="e.g. Week 42"></label>
+<button class="p" id="sv" disabled>Save to shared sheet</button>
+<button id="tpl">Download blank template</button>
+</div>
+<div id="us" class="mu" style="margin-top:8px"></div>
+<div id="errs" class="card err" hidden style="margin:12px 0 0"></div>
+</div>
+
+<div id="empty" class="card" hidden>No data saved yet. Upload your first sheet above.</div>
+
+<div id="dash" hidden>
+<div class="kp" id="kp"></div>
+<div class="card"><div class="row">
+<label>This data<select id="sc"></select></label>
+<label>Compare with<select id="sp"></select></label>
+<label>Target rating<select id="tg"><option>4.1</option><option>4.2</option><option>4.3</option><option selected>4.4</option><option>4.5</option></select></label>
+<label>Target counts as reached<select id="md"><option value="disp">When Amazon displays it (avg ≥ target − 0.05)</option><option value="exact">When exact average ≥ target</option></select></label>
+<label>Search<input id="q" type="search" placeholder="Name or ASIN"></label>
+<label>Min reviews<input id="mn" type="number" min="0" style="width:100px"></label>
+<label>Show<select id="sh"><option value="all">All products</option><option value="need">Below target only</option><option value="chg">Changed vs comparison</option><option value="drop">Rating dropped</option></select></label>
+<button class="p" id="ex">Export CSV</button>
+</div></div>
+<div class="wrap"><table class="d"><thead><tr id="hd"></tr></thead><tbody id="bd"></tbody></table></div>
+<p id="ft" class="mu" style="margin-top:10px"></p>
+</div>
+</main>
+
+<script>
+/* STEP: paste your Google Apps Script web app URL between the quotes */
+const API='https://script.google.com/macros/s/AKfycbwZfHieHP20ltfBy-MNGf3kRZdx4QtiWvDHGPC_zKqwxnGUS982ziPub6tCeYA592FwnQ/exec';
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let U='',P='',SN=[],cur=null,prev=null,pend=null,sk='need',sd=-1,shown=[];
+
+async function api(action,x={}){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({id:U,pass:P,action,...x})});
+  return r.json()}
+async function login(){
+  $('le').textContent='';
+  if(API.startsWith('PASTE')){$('le').textContent='Setup incomplete: the web app URL has not been added to index.html.';return}
+  U=$('u').value.trim();P=$('pw').value;$('go').disabled=true;
+  try{const r=await api('login');if(!r.ok)throw new Error(r.error);
+    try{sessionStorage.setItem('rt',JSON.stringify([U,P]))}catch(e){}start()}
+  catch(e){$('le').textContent=e.message==='Failed to fetch'?'Could not reach the server. Check the web app URL and that access is set to "Anyone".':e.message}
+  $('go').disabled=false}
+function start(){$('login').hidden=true;$('app').hidden=false;$('pw').value='';load()}
+$('go').onclick=login;$('pw').onkeydown=e=>e.key==='Enter'&&login();
+$('out').onclick=()=>{try{sessionStorage.removeItem('rt')}catch(e){}location.reload()};
+try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&!API.startsWith('PASTE')){U=s[0];P=s[1];start()}}catch(e){}
+
+const o=a=>({asin:String(a[0]),name:String(a[1]),n:+a[2],r:+a[3]});
+async function load(c,p){
+  $('st').textContent='Loading…';
+  try{const r=await api('get',{cur:c||'',prev:p||''});if(!r.ok)throw new Error(r.error);
+    SN=r.snaps;$('st').textContent='';
+    if(!SN.length){$('empty').hidden=false;$('dash').hidden=true;return}
+    $('empty').hidden=true;cur=r.cur.map(o);prev=r.prev?r.prev.map(o):null;
+    const opt=s=>'<option value="'+s.id+'">'+esc(s.label)+' ('+s.count+')</option>',rv=SN.slice().reverse();
+    $('sc').innerHTML=rv.map(opt).join('');$('sc').value=r.curId;
+    $('sp').innerHTML='<option value="none">No comparison</option>'+rv.map(opt).join('');$('sp').value=r.prevId;
+    go()}
+  catch(e){$('st').textContent='Error: '+e.message}}
+$('sc').onchange=()=>load($('sc').value,'');
+$('sp').onchange=()=>load($('sc').value,$('sp').value);
+
+/* ---------- upload ---------- */
+function parse(rows){
+  const h=(rows[0]||[]).map(x=>String(x).trim().toLowerCase());
+  if(['asin','product name','total reviews','average rating'].some((x,i)=>h[i]!==x))
+    return{err:['Row 1 must read exactly: ASIN, Product Name, Total Reviews, Average Rating. Yours reads: '+(rows[0]||[]).slice(0,4).join(', ')+'.'],data:[]};
+  const data=[],err=[],seen=new Set();
+  rows.slice(1).forEach((r,i)=>{const n=i+2;if(r.slice(0,4).every(x=>String(x).trim()===''))return;
+    const a=String(r[0]).trim().toUpperCase(),nm=String(r[1]).trim(),rs=String(r[2]).trim().replace(/,/g,''),ra=String(r[3]).trim().replace(',','.');const e=[];
+    if(!a)e.push('ASIN is empty');else if(seen.has(a))e.push('duplicate ASIN '+a);
+    if(rs===''||isNaN(Number(rs)))e.push('Total Reviews must be a number (got "'+rs+'")');
+    const rt=Number(ra);if(ra===''||isNaN(rt)||rt<1||rt>5)e.push('Average Rating must be a number from 1 to 5 (got "'+ra+'")');
+    if(e.length)err.push('Row '+n+': '+e.join('; '));else{seen.add(a);data.push({asin:a,name:nm,n:+rs,r:rt})}});
+  if(!data.length&&!err.length)err.push('No data rows found.');
+  return{err,data}}
+$('fc').onchange=e=>{const f=e.target.files[0];pend=null;$('sv').disabled=true;$('errs').hidden=true;$('us').textContent='';if(!f)return;
+  const fr=new FileReader();fr.onload=()=>{let r;
+    try{const wb=XLSX.read(fr.result,{type:'array'});r=parse(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:true}))}
+    catch(x){r={err:['Could not read this file.'],data:[]}}
+    if(r.err.length){const b=$('errs');b.hidden=false;b.innerHTML='<b>'+r.err.length+' problem'+(r.err.length>1?'s':'')+' found. Rows with problems are left out. Fix your sheet and upload again, or save the valid rows.</b><ul>'+r.err.slice(0,25).map(x=>'<li>'+esc(x)+'</li>').join('')+(r.err.length>25?'<li>…and '+(r.err.length-25)+' more</li>':'')+'</ul>'}
+    if(r.data.length){pend=r.data;$('sv').disabled=false;$('us').textContent=r.data.length+' products ready to save.';if(!$('lb').value)$('lb').value=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}};
+  fr.readAsArrayBuffer(f)};
+$('sv').onclick=async()=>{if(!pend)return;$('sv').disabled=true;$('us').textContent='Saving…';
+  try{const r=await api('upload',{label:$('lb').value.trim(),rows:pend.map(x=>[x.asin,x.name,x.n,x.r])});if(!r.ok)throw new Error(r.error);
+    $('us').textContent='Saved. Everyone using this link now sees it.';pend=null;$('fc').value='';$('lb').value='';await load()}
+  catch(e){$('us').textContent='Could not save: '+e.message;$('sv').disabled=false}};
+$('tpl').onclick=()=>dl('ASIN,Product Name,Total Reviews,Average Rating\nB0EXAMPLE01,Steel Water Bottle 1L,1240,4.2\nB0EXAMPLE02,Yoga Mat 6mm,860,4.0\n','upload-template.csv');
+function dl(s,n){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/csv'}));a.download=n;a.click()}
+
+/* ---------- dashboard ---------- */
+const tgt=()=>parseFloat($('tg').value)-($('md').value==='disp'?0.05:0);
+const need=(n,r,t)=>r>=t?0:Math.ceil((t*n-r*n)/(5-t)-1e-9);
+const COLS=[['name','Product','l'],['asin','ASIN','l'],['n','Reviews'],['r','Rating'],['dn','Reviews vs comparison'],['dr','Rating vs comparison'],['need','5★ needed']];
+const sg=(v,d)=>v==null?'<span class="mu">—</span>':'<span class="'+(v>0?'pos':v<0?'neg':'mu')+'">'+(v>0?'+':'')+(d?v.toFixed(2):v.toLocaleString())+'</span>';
+function go(){
+  if(!cur)return;$('dash').hidden=false;
+  const t=tgt(),pm=new Map((prev||[]).map(x=>[x.asin.toUpperCase(),x]));
+  const all=cur.map(x=>{const p=pm.get(x.asin.toUpperCase());return{...x,hp:!!p,dn:p?x.n-p.n:null,dr:p?Math.round((x.r-p.r)*100)/100:null,need:need(x.n,x.r,t)}});
+  const q=$('q').value.trim().toLowerCase(),mn=parseFloat($('mn').value),sh=$('sh').value;
+  shown=all.filter(x=>(!q||x.name.toLowerCase().includes(q)||x.asin.toLowerCase().includes(q))&&(isNaN(mn)||x.n>=mn)
+    &&(sh==='all'||(sh==='need'&&x.need>0)||(sh==='chg'&&x.hp&&(x.dn||x.dr))||(sh==='drop'&&x.dr<0)));
+  shown.sort((a,b)=>{const x=a[sk],y=b[sk];if(x==null)return 1;if(y==null)return -1;return(typeof x==='string'?x.localeCompare(y):x-y)*sd});
+  const tot=all.reduce((s,x)=>s+x.n,0),wa=all.reduce((s,x)=>s+x.n*x.r,0)/tot,
+    nb=all.filter(x=>x.need>0).length,ns=all.reduce((s,x)=>s+x.need,0),nr=all.reduce((s,x)=>s+(x.dn||0),0);
+  $('kp').innerHTML=[[all.length.toLocaleString(),'Products'],[tot.toLocaleString(),'Total reviews'],[wa.toFixed(2),'Average rating (weighted)'],
+    [nb.toLocaleString(),'Products below '+$('tg').value],[ns.toLocaleString(),'5★ needed in total'],[prev?(nr>=0?'+':'')+nr.toLocaleString():'—','New reviews vs comparison']]
+    .map(k=>'<div><b>'+k[0]+'</b><span>'+k[1]+'</span></div>').join('');
+  $('hd').innerHTML=COLS.map(c=>'<th tabindex="0" data-k="'+c[0]+'" class="'+(c[2]||'')+'">'+c[1]+(sk===c[0]?(sd>0?' ▲':' ▼'):'')+'</th>').join('');
+  $('bd').innerHTML=shown.map(x=>'<tr><td class="l">'+esc(x.name)+(prev&&!x.hp?' <small class="mu">(new)</small>':'')+'</td><td class="l">'+esc(x.asin)+'</td><td>'+x.n.toLocaleString()+'</td><td>'+x.r.toFixed(1)+'</td><td>'+sg(x.dn,0)+'</td><td>'+sg(x.dr,1)+'</td><td class="'+(x.need>0?'need':'done')+'">'+(x.need>0?x.need.toLocaleString():'Target reached')+'</td></tr>').join('');
+  $('ft').textContent='Showing '+shown.length.toLocaleString()+' of '+all.length.toLocaleString()+' products. Assumes every new rating is 5 stars.'}
+$('hd').onclick=e=>{const k=e.target.closest('th')?.dataset.k;if(!k)return;if(sk===k)sd*=-1;else{sk=k;sd=(k==='name'||k==='asin')?1:-1}go()};
+['tg','md','q','mn','sh'].forEach(i=>$(i).addEventListener('input',go));
+$('ex').onclick=()=>{const c=[['ASIN','Product Name','Total Reviews','Average Rating','Reviews vs comparison','Rating vs comparison','5-star needed for '+$('tg').value]].concat(shown.map(x=>[x.asin,x.name,x.n,x.r,x.dn??'',x.dr??'',x.need]));
+  dl(c.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'),'review-tracker.csv')};
+</script></body></html>
