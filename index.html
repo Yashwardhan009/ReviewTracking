@@ -111,7 +111,7 @@ function kb(){const R=['1234567890','qwertyuiop','asdfghjkl','zxcvbnm','!#$%&*+=
 $('kbt').onclick=()=>{$('kb').hidden=!$('kb').hidden;if(!$('kb').hidden)kb()};
 $('kb').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
   if(a==='s'){SH=!SH;kb();return}if(a==='b')FOC.value=FOC.value.slice(0,-1);else FOC.value+=b.textContent};
-$('go').onclick=login;$('pw').onkeydown=e=>e.key==='Enter'&&login();
+$('go').onclick=login;$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('out').onclick=()=>{try{sessionStorage.removeItem('rt')}catch(e){}location.reload()};
 try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&API&&!API.startsWith('PASTE')){U=s[0];P=s[1];start()}}catch(e){}
 
