@@ -18,6 +18,7 @@ button{cursor:pointer}button.p{background:var(--nv);border-color:var(--nv);color
 :focus-visible{outline:2px solid var(--ac);outline-offset:1px}
 .lg{max-width:360px;margin:12vh auto 0}.lg label{display:block;margin:10px 0 4px;font-weight:500}.lg input{width:100%}.lg button{width:100%;margin-top:16px}
 .er{color:var(--er);margin-top:8px}
+.kb div{display:flex;gap:4px;margin-top:4px;justify-content:center}.kb button,.lg .kb button{width:auto;min-width:28px;margin-top:0;padding:8px 6px;flex:1}
 table.fmt{border-collapse:collapse;margin:8px 0;width:100%}.fmt th,.fmt td{border:1px solid var(--ln);padding:6px 10px;text-align:left}.fmt th{background:var(--hd)}
 ul{margin:6px 0 0;padding-left:20px;color:var(--mu)}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.row label{display:flex;flex-direction:column;font-size:13px;color:var(--mu);gap:3px}
@@ -36,8 +37,11 @@ table.d{border-collapse:collapse;width:100%;min-width:820px}
 <section id="login" class="lg card">
 <h1>Catalogue Review Tracker</h1>
 <p class="mu">Sign in to continue.</p>
-<label for="u">Email</label><input id="u" type="email" autocomplete="username">
-<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+<label for="u">Email</label><input id="u" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false">
+<label for="pw">Password</label><input id="pw" type="password" autocomplete="off" autocapitalize="none" spellcheck="false">
+<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:8px"><input type="checkbox" id="shw" style="width:auto"> Show password</label>
+<button type="button" id="kbt" style="margin-top:8px">Use on-screen keyboard</button>
+<div id="kb" class="kb" hidden></div>
 <button class="p" id="go">Sign in</button>
 <div class="er" id="le" role="alert"></div>
 </section>
@@ -93,16 +97,23 @@ async function api(action,x={}){
   return r.json()}
 async function login(){
   $('le').textContent='';
-  if(API.startsWith('PASTE')){$('le').textContent='Setup incomplete: the web app URL has not been added to index.html.';return}
+  if(!API||API.startsWith('PASTE')){$('le').textContent='Setup incomplete: the web app URL has not been added to index.html.';return}
   U=$('u').value.trim();P=$('pw').value;$('go').disabled=true;
   try{const r=await api('login');if(!r.ok)throw new Error(r.error);
     try{sessionStorage.setItem('rt',JSON.stringify([U,P]))}catch(e){}start()}
   catch(e){$('le').textContent=e.message==='Failed to fetch'?'Could not reach the server. Check the web app URL and that access is set to "Anyone".':e.message}
   $('go').disabled=false}
 function start(){$('login').hidden=true;$('app').hidden=false;$('pw').value='';load()}
+$('shw').onchange=()=>{$('pw').type=$('shw').checked?'text':'password'};
+let FOC=$('u'),SH=false;['u','pw'].forEach(i=>$(i).addEventListener('focus',()=>FOC=$(i)));
+function kb(){const R=['1234567890','qwertyuiop','asdfghjkl','zxcvbnm','!#$%&*+=?'];
+  $('kb').innerHTML=R.map(r=>'<div>'+[...r].map(c=>'<button type="button">'+(SH?c.toUpperCase():c)+'</button>').join('')+'</div>').join('')+'<div><button type="button" data-a="s">Shift</button><button type="button">@</button><button type="button">.</button><button type="button">_</button><button type="button">-</button><button type="button" data-a="b">Back</button></div>'}
+$('kbt').onclick=()=>{$('kb').hidden=!$('kb').hidden;if(!$('kb').hidden)kb()};
+$('kb').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
+  if(a==='s'){SH=!SH;kb();return}if(a==='b')FOC.value=FOC.value.slice(0,-1);else FOC.value+=b.textContent};
 $('go').onclick=login;$('pw').onkeydown=e=>e.key==='Enter'&&login();
 $('out').onclick=()=>{try{sessionStorage.removeItem('rt')}catch(e){}location.reload()};
-try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&!API.startsWith('PASTE')){U=s[0];P=s[1];start()}}catch(e){}
+try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&API&&!API.startsWith('PASTE')){U=s[0];P=s[1];start()}}catch(e){}
 
 const o=a=>({asin:String(a[0]),name:String(a[1]),n:+a[2],r:+a[3]});
 async function load(c,p){
