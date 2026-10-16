@@ -71,9 +71,10 @@ table.d{border-collapse:collapse;width:100%;min-width:820px}
 <div class="kp" id="kp"></div>
 <div class="card"><div class="row">
 <label>This data<select id="sc"></select></label>
+<button id="del" hidden>Delete this upload</button>
 <label>Compare with<select id="sp"></select></label>
 <label>Target rating<select id="tg"><option>4.1</option><option>4.2</option><option>4.3</option><option selected>4.4</option><option>4.5</option></select></label>
-<label>Target counts as reached<select id="md"><option value="disp">When Amazon displays it (avg ≥ target − 0.05)</option><option value="exact">When exact average ≥ target</option></select></label>
+<label>Target counts as reached<select id="md"><option value="disp">As Amazon displays it (4.25 shows as 4.3)</option><option value="exact">Exact average (needs the full 4.30)</option></select></label>
 <label>Search<input id="q" type="search" placeholder="Name or ASIN"></label>
 <label>Min reviews<input id="mn" type="number" min="0" style="width:100px"></label>
 <label>Show<select id="sh"><option value="all">All products</option><option value="need">Below target only</option><option value="chg">Changed vs comparison</option><option value="drop">Rating dropped</option><option value="miss">Missing reviews or rating</option></select></label>
@@ -90,7 +91,7 @@ const API='https://script.google.com/macros/s/AKfycbwZfHieHP20ltfBy-MNGf3kRZdx4Q
 
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let U='',P='',SN=[],cur=null,prev=null,pend=null,sk='need',sd=-1,shown=[];
+let U='',P='',ADMIN=false,SN=[],cur=null,prev=null,pend=null,sk='need',sd=-1,shown=[];
 
 async function api(action,x={}){
   const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({id:U,pass:P,action,...x})});
@@ -99,7 +100,7 @@ async function login(){
   $('le').textContent='';
   if(!API||API.startsWith('PASTE')){$('le').textContent='Setup incomplete: the web app URL has not been added to index.html.';return}
   U=$('u').value.trim();P=$('pw').value;$('go').disabled=true;
-  try{const r=await api('login');if(!r.ok)throw new Error(r.error);
+  try{const r=await api('login');if(!r.ok)throw new Error(r.error);ADMIN=!!r.admin;
     try{sessionStorage.setItem('rt',JSON.stringify([U,P]))}catch(e){}start()}
   catch(e){$('le').textContent=e.message==='Failed to fetch'?'Could not reach the server. Check the web app URL and that access is set to "Anyone".':e.message}
   $('go').disabled=false}
@@ -113,7 +114,7 @@ $('kb').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.da
   if(a==='s'){SH=!SH;kb();return}if(a==='b')FOC.value=FOC.value.slice(0,-1);else FOC.value+=b.textContent};
 $('go').onclick=login;$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('out').onclick=()=>{try{sessionStorage.removeItem('rt')}catch(e){}location.reload()};
-try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&API&&!API.startsWith('PASTE')){U=s[0];P=s[1];start()}}catch(e){}
+try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&API&&!API.startsWith('PASTE')){U=s[0];P=s[1];api('login').then(r=>{if(r.ok){ADMIN=!!r.admin;start()}})}}catch(e){}
 
 const nv=v=>v===''||v==null?null:+v;
 const o=a=>({asin:String(a[0]),name:String(a[1]),n:nv(a[2]),r:nv(a[3])});
@@ -125,9 +126,12 @@ async function load(c,p){
     $('empty').hidden=true;cur=r.cur.map(o);prev=r.prev?r.prev.map(o):null;
     const opt=s=>'<option value="'+s.id+'">'+esc(s.label)+' ('+s.count+')</option>',rv=SN.slice().reverse();
     $('sc').innerHTML=rv.map(opt).join('');$('sc').value=r.curId;
-    $('sp').innerHTML='<option value="none">No comparison</option>'+rv.map(opt).join('');$('sp').value=r.prevId;
+    $('sp').innerHTML='<option value="none">No comparison</option>'+rv.map(opt).join('');$('sp').value=r.prevId;$('del').hidden=!ADMIN;
     go()}
   catch(e){$('st').textContent='Error: '+e.message}}
+$('del').onclick=async()=>{const s=SN.find(x=>x.id===$('sc').value);
+  if(!s||!confirm('Delete the upload "'+s.label+'" ('+s.count+' products)? It will disappear for everyone.'))return;
+  $('st').textContent='Deleting…';try{const r=await api('delete',{snap:s.id});if(!r.ok)throw new Error(r.error);await load()}catch(e){$('st').textContent='Error: '+e.message}};
 $('sc').onchange=()=>load($('sc').value,'');
 $('sp').onchange=()=>load($('sc').value,$('sp').value);
 
