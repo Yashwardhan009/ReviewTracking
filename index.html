@@ -18,7 +18,6 @@ button{cursor:pointer}button.p{background:var(--nv);border-color:var(--nv);color
 :focus-visible{outline:2px solid var(--ac);outline-offset:1px}
 .lg{max-width:360px;margin:12vh auto 0}.lg label{display:block;margin:10px 0 4px;font-weight:500}.lg input{width:100%}.lg button{width:100%;margin-top:16px}
 .er{color:var(--er);margin-top:8px}
-.kb div{display:flex;gap:4px;margin-top:4px;justify-content:center}.kb button,.lg .kb button{width:auto;min-width:28px;margin-top:0;padding:8px 6px;flex:1}
 table.fmt{border-collapse:collapse;margin:8px 0;width:100%}.fmt th,.fmt td{border:1px solid var(--ln);padding:6px 10px;text-align:left}.fmt th{background:var(--hd)}
 ul{margin:6px 0 0;padding-left:20px;color:var(--mu)}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.row label{display:flex;flex-direction:column;font-size:13px;color:var(--mu);gap:3px}
@@ -40,14 +39,12 @@ table.d{border-collapse:collapse;width:100%;min-width:820px}
 <label for="u">Email</label><input id="u" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false">
 <label for="pw">Password</label><input id="pw" type="password" autocomplete="off" autocapitalize="none" spellcheck="false">
 <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin-top:8px"><input type="checkbox" id="shw" style="width:auto"> Show password</label>
-<button type="button" id="kbt" style="margin-top:8px">Use on-screen keyboard</button>
-<div id="kb" class="kb" hidden></div>
 <button class="p" id="go">Sign in</button>
 <div class="er" id="le" role="alert"></div>
 </section>
 
 <main id="app" hidden>
-<div class="top"><h1>Catalogue Review Tracker</h1><div><span id="st" class="mu"></span> <button id="out">Sign out</button></div></div>
+<div class="top"><h1>Catalogue Review Tracker</h1><div><span id="who" class="mu"></span> <span id="st" class="mu"></span> <button id="out">Sign out</button></div></div>
 
 <div class="card">
 <h2>Add this week's data</h2>
@@ -65,13 +62,14 @@ table.d{border-collapse:collapse;width:100%;min-width:820px}
 <div id="errs" class="card err" hidden style="margin:12px 0 0"></div>
 </div>
 
+<div id="mg" class="card" hidden><h2>Saved uploads (only the admin can delete)</h2><table class="fmt"><tbody id="ml"></tbody></table></div>
+
 <div id="empty" class="card" hidden>No data saved yet. Upload your first sheet above.</div>
 
 <div id="dash" hidden>
 <div class="kp" id="kp"></div>
 <div class="card"><div class="row">
 <label>This data<select id="sc"></select></label>
-<button id="del" hidden>Delete this upload</button>
 <label>Compare with<select id="sp"></select></label>
 <label>Target rating<select id="tg"><option>4.1</option><option>4.2</option><option>4.3</option><option selected>4.4</option><option>4.5</option></select></label>
 <label>Target counts as reached<select id="md"><option value="disp">As Amazon displays it (4.25 shows as 4.3)</option><option value="exact">Exact average (needs the full 4.30)</option></select></label>
@@ -104,14 +102,8 @@ async function login(){
     try{sessionStorage.setItem('rt',JSON.stringify([U,P]))}catch(e){}start()}
   catch(e){$('le').textContent=e.message==='Failed to fetch'?'Could not reach the server. Check the web app URL and that access is set to "Anyone".':e.message}
   $('go').disabled=false}
-function start(){$('login').hidden=true;$('app').hidden=false;$('pw').value='';load()}
+function start(){$('who').textContent=U+(ADMIN?' (admin)':' (member)')+' ';$('login').hidden=true;$('app').hidden=false;$('pw').value='';load()}
 $('shw').onchange=()=>{$('pw').type=$('shw').checked?'text':'password'};
-let FOC=$('u'),SH=false;['u','pw'].forEach(i=>$(i).addEventListener('focus',()=>FOC=$(i)));
-function kb(){const R=['1234567890','qwertyuiop','asdfghjkl','zxcvbnm','!#$%&*+=?'];
-  $('kb').innerHTML=R.map(r=>'<div>'+[...r].map(c=>'<button type="button">'+(SH?c.toUpperCase():c)+'</button>').join('')+'</div>').join('')+'<div><button type="button" data-a="s">Shift</button><button type="button">@</button><button type="button">.</button><button type="button">_</button><button type="button">-</button><button type="button" data-a="b">Back</button></div>'}
-$('kbt').onclick=()=>{$('kb').hidden=!$('kb').hidden;if(!$('kb').hidden)kb()};
-$('kb').onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;
-  if(a==='s'){SH=!SH;kb();return}if(a==='b')FOC.value=FOC.value.slice(0,-1);else FOC.value+=b.textContent};
 $('go').onclick=login;$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('out').onclick=()=>{try{sessionStorage.removeItem('rt')}catch(e){}location.reload()};
 try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&API&&!API.startsWith('PASTE')){U=s[0];P=s[1];api('login').then(r=>{if(r.ok){ADMIN=!!r.admin;start()}})}}catch(e){}
@@ -121,16 +113,18 @@ const o=a=>({asin:String(a[0]),name:String(a[1]),n:nv(a[2]),r:nv(a[3])});
 async function load(c,p){
   $('st').textContent='Loading…';
   try{const r=await api('get',{cur:c||'',prev:p||''});if(!r.ok)throw new Error(r.error);
-    SN=r.snaps;$('st').textContent='';
+    SN=r.snaps;$('st').textContent='';mgr();
     if(!SN.length){$('empty').hidden=false;$('dash').hidden=true;return}
     $('empty').hidden=true;cur=r.cur.map(o);prev=r.prev?r.prev.map(o):null;
     const opt=s=>'<option value="'+s.id+'">'+esc(s.label)+' ('+s.count+')</option>',rv=SN.slice().reverse();
     $('sc').innerHTML=rv.map(opt).join('');$('sc').value=r.curId;
-    $('sp').innerHTML='<option value="none">No comparison</option>'+rv.map(opt).join('');$('sp').value=r.prevId;$('del').hidden=!ADMIN;
+    $('sp').innerHTML='<option value="none">No comparison</option>'+rv.map(opt).join('');$('sp').value=r.prevId;
     go()}
   catch(e){$('st').textContent='Error: '+e.message}}
-$('del').onclick=async()=>{const s=SN.find(x=>x.id===$('sc').value);
-  if(!s||!confirm('Delete the upload "'+s.label+'" ('+s.count+' products)? It will disappear for everyone.'))return;
+function mgr(){const c=$('mg');c.hidden=!ADMIN||!SN.length;if(c.hidden)return;
+  $('ml').innerHTML=SN.slice().reverse().map(s=>'<tr><td>'+esc(s.label)+'</td><td>'+s.count+' products</td><td><button data-id="'+s.id+'">Delete</button></td></tr>').join('')}
+$('ml').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const s=SN.find(x=>x.id===b.dataset.id);
+  if(!s||!confirm('Delete "'+s.label+'" ('+s.count+' products)? It will disappear for everyone.'))return;
   $('st').textContent='Deleting…';try{const r=await api('delete',{snap:s.id});if(!r.ok)throw new Error(r.error);await load()}catch(e){$('st').textContent='Error: '+e.message}};
 $('sc').onchange=()=>load($('sc').value,'');
 $('sp').onchange=()=>load($('sc').value,$('sp').value);
