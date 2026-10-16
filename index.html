@@ -54,7 +54,7 @@ table.d{border-collapse:collapse;width:100%;min-width:820px}
 <p style="margin:0 0 6px">Use an Excel (.xlsx) or .csv sheet with exactly these headings in row 1:</p>
 <table class="fmt"><tr><th>ASIN</th><th>Product Name</th><th>Total Reviews</th><th>Average Rating</th></tr>
 <tr><td>B0EXAMPLE01</td><td>Steel Water Bottle 1L</td><td>1240</td><td>4.2</td></tr></table>
-<ul><li>One row per product. Each ASIN appears once.</li><li>Total Reviews is a number. Average Rating is a number from 1 to 5.</li><li>Data goes on the first tab. Use the same format every week.</li></ul>
+<ul><li>One row per product. Each ASIN appears once.</li><li>Total Reviews is a number. Average Rating is a number from 1 to 5. Leave either one blank if a product has no reviews or no rating yet.</li><li>Data goes on the first tab. Use the same format every week.</li></ul>
 <div class="row" style="margin-top:12px">
 <label>Sheet<input id="fc" type="file" accept=".xlsx,.xls,.csv"></label>
 <label>Name for this upload<input id="lb" placeholder="e.g. Week 42"></label>
@@ -76,7 +76,7 @@ table.d{border-collapse:collapse;width:100%;min-width:820px}
 <label>Target counts as reached<select id="md"><option value="disp">When Amazon displays it (avg ≥ target − 0.05)</option><option value="exact">When exact average ≥ target</option></select></label>
 <label>Search<input id="q" type="search" placeholder="Name or ASIN"></label>
 <label>Min reviews<input id="mn" type="number" min="0" style="width:100px"></label>
-<label>Show<select id="sh"><option value="all">All products</option><option value="need">Below target only</option><option value="chg">Changed vs comparison</option><option value="drop">Rating dropped</option></select></label>
+<label>Show<select id="sh"><option value="all">All products</option><option value="need">Below target only</option><option value="chg">Changed vs comparison</option><option value="drop">Rating dropped</option><option value="miss">Missing reviews or rating</option></select></label>
 <button class="p" id="ex">Export CSV</button>
 </div></div>
 <div class="wrap"><table class="d"><thead><tr id="hd"></tr></thead><tbody id="bd"></tbody></table></div>
@@ -115,7 +115,8 @@ $('go').onclick=login;$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')
 $('out').onclick=()=>{try{sessionStorage.removeItem('rt')}catch(e){}location.reload()};
 try{const s=JSON.parse(sessionStorage.getItem('rt'));if(s&&API&&!API.startsWith('PASTE')){U=s[0];P=s[1];start()}}catch(e){}
 
-const o=a=>({asin:String(a[0]),name:String(a[1]),n:+a[2],r:+a[3]});
+const nv=v=>v===''||v==null?null:+v;
+const o=a=>({asin:String(a[0]),name:String(a[1]),n:nv(a[2]),r:nv(a[3])});
 async function load(c,p){
   $('st').textContent='Loading…';
   try{const r=await api('get',{cur:c||'',prev:p||''});if(!r.ok)throw new Error(r.error);
@@ -139,9 +140,9 @@ function parse(rows){
   rows.slice(1).forEach((r,i)=>{const n=i+2;if(r.slice(0,4).every(x=>String(x).trim()===''))return;
     const a=String(r[0]).trim().toUpperCase(),nm=String(r[1]).trim(),rs=String(r[2]).trim().replace(/,/g,''),ra=String(r[3]).trim().replace(',','.');const e=[];
     if(!a)e.push('ASIN is empty');else if(seen.has(a))e.push('duplicate ASIN '+a);
-    if(rs===''||isNaN(Number(rs)))e.push('Total Reviews must be a number (got "'+rs+'")');
-    const rt=Number(ra);if(ra===''||isNaN(rt)||rt<1||rt>5)e.push('Average Rating must be a number from 1 to 5 (got "'+ra+'")');
-    if(e.length)err.push('Row '+n+': '+e.join('; '));else{seen.add(a);data.push({asin:a,name:nm,n:+rs,r:rt})}});
+    if(rs!==''&&isNaN(Number(rs)))e.push('Total Reviews must be a number or blank (got "'+rs+'")');
+    const rt=Number(ra);if(ra!==''&&(isNaN(rt)||rt<1||rt>5))e.push('Average Rating must be a number from 1 to 5, or blank (got "'+ra+'")');
+    if(e.length)err.push('Row '+n+': '+e.join('; '));else{seen.add(a);data.push({asin:a,name:nm,n:rs===''?null:+rs,r:ra===''?null:rt})}});
   if(!data.length&&!err.length)err.push('No data rows found.');
   return{err,data}}
 $('fc').onchange=e=>{const f=e.target.files[0];pend=null;$('sv').disabled=true;$('errs').hidden=true;$('us').textContent='';if(!f)return;
@@ -160,27 +161,27 @@ function dl(s,n){const a=document.createElement('a');a.href=URL.createObjectURL(
 
 /* ---------- dashboard ---------- */
 const tgt=()=>parseFloat($('tg').value)-($('md').value==='disp'?0.05:0);
-const need=(n,r,t)=>r>=t?0:Math.ceil((t*n-r*n)/(5-t)-1e-9);
+const need=(n,r,t)=>n==null||r==null?null:r>=t?0:Math.ceil((t*n-r*n)/(5-t)-1e-9);
 const COLS=[['name','Product','l'],['asin','ASIN','l'],['n','Reviews'],['r','Rating'],['dn','Reviews vs comparison'],['dr','Rating vs comparison'],['need','5★ needed']];
 const sg=(v,d)=>v==null?'<span class="mu">—</span>':'<span class="'+(v>0?'pos':v<0?'neg':'mu')+'">'+(v>0?'+':'')+(d?v.toFixed(2):v.toLocaleString())+'</span>';
 function go(){
   if(!cur)return;$('dash').hidden=false;
   const t=tgt(),pm=new Map((prev||[]).map(x=>[x.asin.toUpperCase(),x]));
-  const all=cur.map(x=>{const p=pm.get(x.asin.toUpperCase());return{...x,hp:!!p,dn:p?x.n-p.n:null,dr:p?Math.round((x.r-p.r)*100)/100:null,need:need(x.n,x.r,t)}});
+  const all=cur.map(x=>{const p=pm.get(x.asin.toUpperCase());return{...x,hp:!!p,dn:p&&x.n!=null?x.n-(p.n||0):null,dr:p&&x.r!=null&&p.r!=null?Math.round((x.r-p.r)*100)/100:null,need:need(x.n,x.r,t)}});
   const q=$('q').value.trim().toLowerCase(),mn=parseFloat($('mn').value),sh=$('sh').value;
   shown=all.filter(x=>(!q||x.name.toLowerCase().includes(q)||x.asin.toLowerCase().includes(q))&&(isNaN(mn)||x.n>=mn)
-    &&(sh==='all'||(sh==='need'&&x.need>0)||(sh==='chg'&&x.hp&&(x.dn||x.dr))||(sh==='drop'&&x.dr<0)));
+    &&(sh==='all'||(sh==='need'&&x.need>0)||(sh==='chg'&&x.hp&&(x.dn||x.dr))||(sh==='drop'&&x.dr<0)||(sh==='miss'&&x.need==null)));
   shown.sort((a,b)=>{const x=a[sk],y=b[sk];if(x==null)return 1;if(y==null)return -1;return(typeof x==='string'?x.localeCompare(y):x-y)*sd});
-  const tot=all.reduce((s,x)=>s+x.n,0),wa=all.reduce((s,x)=>s+x.n*x.r,0)/tot,
+  const tot=all.reduce((s,x)=>s+(x.n||0),0),wn=all.reduce((s,x)=>s+(x.r!=null?(x.n||0):0),0),wa=wn?all.reduce((s,x)=>s+(x.r!=null?(x.n||0)*x.r:0),0)/wn:null,miss=all.filter(x=>x.need==null).length,
     nb=all.filter(x=>x.need>0).length,ns=all.reduce((s,x)=>s+x.need,0),nr=all.reduce((s,x)=>s+(x.dn||0),0);
-  $('kp').innerHTML=[[all.length.toLocaleString(),'Products'],[tot.toLocaleString(),'Total reviews'],[wa.toFixed(2),'Average rating (weighted)'],
-    [nb.toLocaleString(),'Products below '+$('tg').value],[ns.toLocaleString(),'5★ needed in total'],[prev?(nr>=0?'+':'')+nr.toLocaleString():'—','New reviews vs comparison']]
+  $('kp').innerHTML=[[all.length.toLocaleString(),'Products'],[tot.toLocaleString(),'Total reviews'],[wa==null?'—':wa.toFixed(2),'Average rating (weighted)'],
+    [nb.toLocaleString(),'Products below '+$('tg').value],[ns.toLocaleString(),'5★ needed in total'],[miss.toLocaleString(),'Missing reviews or rating'],[prev?(nr>=0?'+':'')+nr.toLocaleString():'—','New reviews vs comparison']]
     .map(k=>'<div><b>'+k[0]+'</b><span>'+k[1]+'</span></div>').join('');
   $('hd').innerHTML=COLS.map(c=>'<th tabindex="0" data-k="'+c[0]+'" class="'+(c[2]||'')+'">'+c[1]+(sk===c[0]?(sd>0?' ▲':' ▼'):'')+'</th>').join('');
-  $('bd').innerHTML=shown.map(x=>'<tr><td class="l">'+esc(x.name)+(prev&&!x.hp?' <small class="mu">(new)</small>':'')+'</td><td class="l">'+esc(x.asin)+'</td><td>'+x.n.toLocaleString()+'</td><td>'+x.r.toFixed(1)+'</td><td>'+sg(x.dn,0)+'</td><td>'+sg(x.dr,1)+'</td><td class="'+(x.need>0?'need':'done')+'">'+(x.need>0?x.need.toLocaleString():'Target reached')+'</td></tr>').join('');
+  $('bd').innerHTML=shown.map(x=>'<tr><td class="l">'+esc(x.name)+(prev&&!x.hp?' <small class="mu">(new)</small>':'')+'</td><td class="l">'+esc(x.asin)+'</td><td>'+(x.n==null?'—':x.n.toLocaleString())+'</td><td>'+(x.r==null?'—':x.r.toFixed(1))+'</td><td>'+sg(x.dn,0)+'</td><td>'+sg(x.dr,1)+'</td><td class="'+(x.need==null?'mu':x.need>0?'need':'done')+'">'+(x.need==null?'No data':x.need>0?x.need.toLocaleString():'Target reached')+'</td></tr>').join('');
   $('ft').textContent='Showing '+shown.length.toLocaleString()+' of '+all.length.toLocaleString()+' products. Assumes every new rating is 5 stars.'}
 $('hd').onclick=e=>{const k=e.target.closest('th')?.dataset.k;if(!k)return;if(sk===k)sd*=-1;else{sk=k;sd=(k==='name'||k==='asin')?1:-1}go()};
 ['tg','md','q','mn','sh'].forEach(i=>$(i).addEventListener('input',go));
-$('ex').onclick=()=>{const c=[['ASIN','Product Name','Total Reviews','Average Rating','Reviews vs comparison','Rating vs comparison','5-star needed for '+$('tg').value]].concat(shown.map(x=>[x.asin,x.name,x.n,x.r,x.dn??'',x.dr??'',x.need]));
+$('ex').onclick=()=>{const c=[['ASIN','Product Name','Total Reviews','Average Rating','Reviews vs comparison','Rating vs comparison','5-star needed for '+$('tg').value]].concat(shown.map(x=>[x.asin,x.name,x.n??'',x.r??'',x.dn??'',x.dr??'',x.need??'']));
   dl(c.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'),'review-tracker.csv')};
 </script></body></html>
